@@ -38,7 +38,7 @@ import './system_users.scss';
 
 import type {PropsFromRedux} from './index';
 
-type Props = PropsFromRedux | {isDisabled?: boolean};
+type Props = PropsFromRedux & {isDisabled?: boolean};
 
 export type TableOptions = {
     pageSize?: PaginationState['pageSize'];
@@ -568,7 +568,7 @@ function SystemUsers(props: Props) {
                         <SystemUsersExport
                             isDisabled={props.isDisabled}
                             currentUserId={props.currentUser.id}
-                            usersLenght={userReports.length}
+                            usersLength={userReports.length}
                         />
                     </div>
                     <AdminConsoleListTable<UserReport>

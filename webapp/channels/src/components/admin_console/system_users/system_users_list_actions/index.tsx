@@ -98,9 +98,6 @@ export function SystemUsersListAction({user, currentUser, tableId, rowIndex, rea
     const isCurrentUserSystemAdmin = useMemo(() => isSystemAdmin(currentUser.roles), [currentUser.roles]);
 
     // Disable if SystemAdmin being edited by non SystemAdmin eg. userManager with EditOtherUsers permissions
-    const isDisabled = readonly || (!isSystemAdmin(currentUser.roles) && isSystemAdmin(user.roles));
-
-    // Disable if SystemAdmin being edited by non SystemAdmin eg. userManager with EditOtherUsers permissions
     const isNonSystemAdminEditingSystemAdmin = !isCurrentUserSystemAdmin && isSystemAdmin(user.roles);
     const disableEditingOtherUsers = isNonSystemAdminEditingSystemAdmin || !haveSysConsoleWriteUserManagementUsersPermissions;
 
