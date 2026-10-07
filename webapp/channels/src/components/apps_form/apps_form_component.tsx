@@ -45,6 +45,13 @@ export type AppsFormProps = {
     channelId?: string;
     timezone?: string;
     isEmbedded?: boolean;
+
+    // When this changes, the form is re-fetched from its source with the current values.
+    refreshNonce?: number;
+
+    // Hides the modal (and its backdrop) without unmounting it, e.g. while a child
+    // dialog is open on top, so dialogs don't visually stack and state is kept.
+    hidden?: boolean;
     onExited: () => void;
     onHide?: () => void;
     actions: {
@@ -53,6 +60,7 @@ export type AppsFormProps = {
         }) => Promise<DoAppCallResult<FormResponseData>>;
         performLookupCall: (field: AppField, values: AppFormValues, userInput: string) => Promise<DoAppCallResult<AppLookupResponse>>;
         refreshOnSelect: (field: AppField, values: AppFormValues) => Promise<DoAppCallResult<FormResponseData>>;
+        refreshForm?: (values: AppFormValues) => Promise<DoAppCallResult<FormResponseData>>;
     };
 };
 
@@ -273,6 +281,8 @@ const initFormValues = (form: AppForm, timezone?: string): AppFormValues => {
     return values;
 };
 
+const hiddenStyle: React.CSSProperties = {display: 'none'};
+
 export class AppsForm extends React.PureComponent<Props, State> {
     // Cache sanitized fields to preserve object identity across renders.
     // Without this, createSanitizedField() returns a new object every render,
@@ -323,7 +333,42 @@ export class AppsForm extends React.PureComponent<Props, State> {
             this.sanitizedFieldCache.clear();
             this.flattenedFields = flattenFields(this.props.form.fields);
         }
+
+        if (this.props.refreshNonce && prevProps.refreshNonce !== this.props.refreshNonce) {
+            this.refreshForm();
+        }
     }
+
+    refreshForm = async () => {
+        if (!this.props.actions.refreshForm) {
+            return;
+        }
+
+        const enteredValues = this.state.values;
+        this.setState({loading: true});
+        const res = await this.props.actions.refreshForm(enteredValues);
+
+        // The refreshed form resets fields to their defaults; keep what the user had
+        // entered for any field that still exists. Setting form here too keeps
+        // getDerivedStateFromProps from re-applying defaults over these values.
+        const refreshedForm = res.data?.type === AppCallResponseTypes.FORM ? res.data.form : undefined;
+        if (refreshedForm) {
+            const values = initFormValues(refreshedForm, this.props.timezone);
+            flattenFields(refreshedForm.fields).forEach((field) => {
+                if (field.name in enteredValues && field.type !== AppFieldTypes.ACTION_BUTTON) {
+                    values[field.name] = enteredValues[field.name];
+                }
+            });
+            this.setState({loading: false, form: refreshedForm, values});
+        } else {
+            this.setState({loading: false});
+        }
+
+        if (res.error) {
+            const elements = fieldsAsElements(this.flattenedFields);
+            this.updateErrors(elements, res.error.data?.errors, res.error.text);
+        }
+    };
 
     updateErrors = (elements: DialogElement[], fieldErrors?: {[x: string]: string}, formError?: string): boolean => {
         let hasErrors = false;
@@ -633,6 +678,8 @@ export class AppsForm extends React.PureComponent<Props, State> {
                 dialogClassName={dialogClassName}
                 enforceFocus={!hasDateTimeFields}
                 show={this.state.show}
+                style={this.props.hidden ? hiddenStyle : undefined}
+                backdropStyle={this.props.hidden ? hiddenStyle : undefined}
                 onHide={this.onHide}
                 onExited={this.props.onExited}
                 backdrop='static'

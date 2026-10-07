@@ -51,6 +51,8 @@ interface Props extends WrappedComponentProps {
 
     // Enhanced functionality
     sourceUrl?: string; // Optional URL for form refresh functionality
+    isTopDialog?: boolean; // False while a child dialog is stacked on top of this one
+    submitButtons?: string; // Name of a select element whose options render as submit buttons
     conversionOptions?: Partial<ConversionOptions>;
     timezone?: string;
 
@@ -95,7 +97,21 @@ interface Props extends WrappedComponentProps {
  * />
  * ```
  */
-class InteractiveDialogAdapter extends React.PureComponent<Props> {
+// refreshNonce is incremented each time a child dialog closes and this dialog is on
+// top again; AppsForm watches it to re-fetch the form from sourceUrl.
+type State = {
+    refreshNonce: number;
+};
+
+class InteractiveDialogAdapter extends React.PureComponent<Props, State> {
+    state: State = {refreshNonce: 0};
+
+    componentDidUpdate(prevProps: Props) {
+        if (prevProps.isTopDialog === false && this.props.isTopDialog && this.props.sourceUrl) {
+            this.setState((prev) => ({refreshNonce: prev.refreshNonce + 1}));
+        }
+    }
+
     // Default conversion context - enhanced mode disabled for backwards compatibility
     private readonly conversionContext: ConversionOptions = {
         enhanced: false, // Legacy mode: minimal validation, non-blocking errors
@@ -150,7 +166,7 @@ class InteractiveDialogAdapter extends React.PureComponent<Props> {
     };
 
     private convertToAppForm = (): {form?: AppForm; error?: string} => {
-        const {elements, title, introductionText, iconUrl, submitLabel, sourceUrl, state} = this.props;
+        const {elements, title, introductionText, iconUrl, submitLabel, sourceUrl, state, submitButtons} = this.props;
         this.currentDialogElements = flattenDialogElements(elements || []);
         const {form, errors} = convertDialogToAppForm(
             elements,
@@ -161,6 +177,7 @@ class InteractiveDialogAdapter extends React.PureComponent<Props> {
             sourceUrl || '',
             state || '',
             this.conversionContext,
+            submitButtons,
         );
 
         const {error} = this.handleValidationErrors(errors);
@@ -703,6 +720,8 @@ class InteractiveDialogAdapter extends React.PureComponent<Props> {
                 form={form}
                 appContext={context}
                 timezone={this.props.timezone}
+                refreshNonce={this.state.refreshNonce}
+                hidden={this.props.isTopDialog === false}
                 onExited={this.props.onExited || (() => {})}
                 onHide={this.cancelAdapter}
                 actions={{

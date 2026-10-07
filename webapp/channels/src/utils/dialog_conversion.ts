@@ -57,6 +57,7 @@ type ServerDialogResponse = {
     callback_id?: string;
     notify_on_cancel?: boolean;
     state?: string;
+    submit_buttons?: string;
 };
 
 // Transformed dialog props structure
@@ -70,6 +71,7 @@ type TransformedDialogProps = {
     callbackId?: string;
     notifyOnCancel?: boolean;
     state?: string;
+    submitButtons?: string;
 };
 
 export type ConversionOptions = {
@@ -606,6 +608,7 @@ export function transformServerDialogToProps(serverDialog: ServerDialogResponse)
         callbackId: serverDialog.callback_id,
         notifyOnCancel: serverDialog.notify_on_cancel,
         state: serverDialog.state,
+        submitButtons: serverDialog.submit_buttons,
     };
 }
 
@@ -621,6 +624,7 @@ export function convertDialogToAppForm(
     sourceUrl: string,
     dialogState: string,
     options: ConversionOptions,
+    submitButtons?: string,
 ): ConversionResult {
     const allErrors: ValidationError[] = [];
     const convertedFields: AppField[] = [];
@@ -673,6 +677,7 @@ export function convertDialogToAppForm(
         icon: iconUrl,
         header: introductionText ? String(introductionText) : undefined,
         submit_label: submitLabel ? String(submitLabel) : undefined,
+        submit_buttons: submitButtons || undefined,
         submit: {
             path: '/submit',
             expand: {},
@@ -747,6 +752,7 @@ export function convertServerDialogResponseToAppForm(
         transformedDialog.sourceUrl || '',
         transformedDialog.state || '',
         options,
+        transformedDialog.submitButtons,
     );
 
     return {form, errors};

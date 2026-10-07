@@ -162,6 +162,7 @@ export type Dialog = {
     notify_on_cancel?: boolean;
     state?: string;
     source_url?: string;
+    submit_buttons?: string;
 };
 
 export type DialogSubmission = {

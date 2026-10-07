@@ -322,6 +322,7 @@ export default class AppsFormField extends React.PureComponent<Props> {
             return (
                 <AppsFormActionButton
                     label={field.label || field.name}
+                    description={field.description}
                     url={field.action_button_url || ''}
                     context={field.action_button_context}
                     channelId={this.props.channelId}

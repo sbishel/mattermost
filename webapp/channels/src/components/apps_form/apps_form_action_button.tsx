@@ -11,12 +11,13 @@ import {executeDialogAction} from 'actions/integration_actions';
 
 type Props = {
     label: string;
+    description?: string;
     url: string;
     context?: Record<string, string>;
     channelId?: string;
 };
 
-const AppsFormActionButton: React.FC<Props> = ({label, url, context, channelId}) => {
+const AppsFormActionButton: React.FC<Props> = ({label, description, url, context, channelId}) => {
     const dispatch = useDispatch();
     const intl = useIntl();
     const [loading, setLoading] = useState(false);
@@ -52,6 +53,32 @@ const AppsFormActionButton: React.FC<Props> = ({label, url, context, channelId})
             }
         }
     }, [dispatch, url, context, channelId, intl]);
+
+    if (description) {
+        return (
+            <div className='form-group'>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
+                    <span style={{flex: 1}}>{description}</span>
+                    <Button
+                        onClick={handleClick}
+                        disabled={loading || !url}
+                        aria-busy={loading}
+                        type='button'
+                    >
+                        {loading ? intl.formatMessage({id: 'interactive_dialog.action_button.loading', defaultMessage: 'Loading...'}) : label}
+                    </Button>
+                </div>
+                {error && (
+                    <div
+                        className='error-text'
+                        role='alert'
+                    >
+                        {error}
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className='form-group'>

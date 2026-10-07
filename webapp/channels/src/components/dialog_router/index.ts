@@ -46,6 +46,11 @@ function mapStateToProps(state: GlobalState, ownProps: {triggerId?: string}) {
         notifyOnCancel: data.dialog.notify_on_cancel,
         state: data.dialog.state,
         sourceUrl: data.dialog.source_url,
+        submitButtons: data.dialog.submit_buttons,
+
+        // Dialogs are keyed by trigger_id in open order, so the last key is the dialog
+        // on top of the stack. The adapter uses this to refresh a parent when a child closes.
+        isTopDialog: Object.keys(state.entities.integrations.dialogs).pop() === ownProps.triggerId,
         emojiMap,
         hasUrl: Boolean(data.url),
         timezone: getCurrentTimezone(state) || undefined,

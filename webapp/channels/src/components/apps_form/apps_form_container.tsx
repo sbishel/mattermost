@@ -20,6 +20,8 @@ type Props = {
     form?: AppForm;
     appContext?: AppContext;
     timezone?: string;
+    refreshNonce?: number;
+    hidden?: boolean;
     onExited: () => void;
     onHide?: () => void;
     actions: {
@@ -165,6 +167,22 @@ class AppsFormContainer extends React.PureComponent<Props, State> {
         return res;
     };
 
+    // Re-fetches the whole form from its source without a selected field, e.g. when a
+    // child dialog stacked on top of this one closes.
+    refreshForm = async (values: AppFormValues): Promise<DoAppCallResult<FormResponseData>> => {
+        const {form} = this.state;
+        if (!form?.source || !this.props.appContext) {
+            return {data: {type: AppCallResponseTypes.OK}};
+        }
+
+        const creq = createCallRequest(form.source, this.props.appContext, {}, values);
+        const res = await this.props.actions.doAppFetchForm(creq, this.props.intl);
+        if (!res.error && res.data?.type === AppCallResponseTypes.FORM && res.data.form) {
+            this.setState({form: res.data.form});
+        }
+        return res;
+    };
+
     performLookupCall = async (field: AppField, values: AppFormValues, userInput: string): Promise<DoAppCallResult<AppLookupResponse>> => {
         const intl = this.props.intl;
         const makeErrorMsg = (message: string) => intl.formatMessage(
@@ -203,12 +221,15 @@ class AppsFormContainer extends React.PureComponent<Props, State> {
                 form={form}
                 channelId={this.props.appContext.channel_id}
                 timezone={this.props.timezone}
+                refreshNonce={this.props.refreshNonce}
+                hidden={this.props.hidden}
                 onExited={this.props.onExited}
                 onHide={this.props.onHide}
                 actions={{
                     submit: this.submitForm,
                     performLookupCall: this.performLookupCall,
                     refreshOnSelect: this.refreshOnSelect,
+                    refreshForm: this.refreshForm,
                 }}
             />
         );

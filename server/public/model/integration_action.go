@@ -463,6 +463,11 @@ type Dialog struct {
 	NotifyOnCancel   bool            `json:"notify_on_cancel"`
 	State            string          `json:"state"`
 	SourceURL        string          `json:"source_url,omitempty"`
+
+	// SubmitButtons names a select element whose options are rendered as submit
+	// buttons in place of the single submit button. The clicked option's value is
+	// submitted under that element's name, and the element itself is not rendered.
+	SubmitButtons string `json:"submit_buttons,omitempty"`
 }
 
 // DialogDateTimeConfig groups date/datetime specific configuration
