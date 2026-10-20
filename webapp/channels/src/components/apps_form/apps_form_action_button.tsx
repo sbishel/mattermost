@@ -9,7 +9,12 @@ import {Button} from '@mattermost/shared/components/button';
 
 import {executeDialogAction} from 'actions/integration_actions';
 
+import Markdown from 'components/markdown';
+
+import './apps_form_action_button.scss';
+
 type Props = {
+    name: string;
     label: string;
     description?: string;
     url: string;
@@ -17,7 +22,7 @@ type Props = {
     channelId?: string;
 };
 
-const AppsFormActionButton: React.FC<Props> = ({label, description, url, context, channelId}) => {
+const AppsFormActionButton: React.FC<Props> = ({name, label, description, url, context, channelId}) => {
     const dispatch = useDispatch();
     const intl = useIntl();
     const [loading, setLoading] = useState(false);
@@ -54,42 +59,35 @@ const AppsFormActionButton: React.FC<Props> = ({label, description, url, context
         }
     }, [dispatch, url, context, channelId, intl]);
 
-    if (description) {
-        return (
-            <div className='form-group'>
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
-                    <span style={{flex: 1}}>{description}</span>
-                    <Button
-                        onClick={handleClick}
-                        disabled={loading || !url}
-                        aria-busy={loading}
-                        type='button'
-                    >
-                        {loading ? intl.formatMessage({id: 'interactive_dialog.action_button.loading', defaultMessage: 'Loading...'}) : label}
-                    </Button>
-                </div>
-                {error && (
-                    <div
-                        className='error-text'
-                        role='alert'
-                    >
-                        {error}
-                    </div>
-                )}
-            </div>
-        );
-    }
+    // Several action buttons can share a label (e.g. one "Schedule" per row), so the
+    // description is linked to the button to tell them apart for screen readers.
+    const descriptionId = description ? `${name}_description` : undefined;
+
+    const button = (
+        <Button
+            onClick={handleClick}
+            disabled={loading || !url}
+            aria-busy={loading}
+            aria-describedby={descriptionId}
+            type='button'
+        >
+            {loading ? intl.formatMessage({id: 'interactive_dialog.action_button.loading', defaultMessage: 'Loading...'}) : label}
+        </Button>
+    );
 
     return (
         <div className='form-group'>
-            <Button
-                onClick={handleClick}
-                disabled={loading || !url}
-                aria-busy={loading}
-                type='button'
-            >
-                {loading ? intl.formatMessage({id: 'interactive_dialog.action_button.loading', defaultMessage: 'Loading...'}) : label}
-            </Button>
+            {description ? (
+                <div className='apps-form-action-button'>
+                    <div
+                        id={descriptionId}
+                        className='apps-form-action-button__description'
+                    >
+                        <Markdown message={description}/>
+                    </div>
+                    {button}
+                </div>
+            ) : button}
             {error && (
                 <div
                     className='error-text'

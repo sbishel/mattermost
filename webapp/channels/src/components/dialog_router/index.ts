@@ -11,6 +11,8 @@ import {getCurrentTimezone} from 'mattermost-redux/selectors/entities/timezone';
 
 import {getEmojiMap} from 'selectors/emojis';
 
+import {getTopOpenDialogTriggerId} from 'utils/interactive_dialog';
+
 import type {GlobalState} from 'types/store';
 
 import DialogRouter from './dialog_router';
@@ -47,10 +49,11 @@ function mapStateToProps(state: GlobalState, ownProps: {triggerId?: string}) {
         state: data.dialog.state,
         sourceUrl: data.dialog.source_url,
         submitButtons: data.dialog.submit_buttons,
+        refreshOnReturn: data.dialog.refresh_on_return,
 
-        // Dialogs are keyed by trigger_id in open order, so the last key is the dialog
-        // on top of the stack. The adapter uses this to refresh a parent when a child closes.
-        isTopDialog: Object.keys(state.entities.integrations.dialogs).pop() === ownProps.triggerId,
+        // The adapter hides this dialog while another is open on top of it, and
+        // refreshes it (if refreshOnReturn is set) when it becomes the top dialog again.
+        isTopDialog: getTopOpenDialogTriggerId(state) === ownProps.triggerId,
         emojiMap,
         hasUrl: Boolean(data.url),
         timezone: getCurrentTimezone(state) || undefined,

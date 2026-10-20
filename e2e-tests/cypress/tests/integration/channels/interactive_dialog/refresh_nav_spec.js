@@ -33,6 +33,9 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
 
             const webhookBaseUrl = Cypress.expose().webhookBaseUrl;
 
+            // # Restore the webhook's in-memory demo data
+            cy.request('POST', `${webhookBaseUrl}/dialog/reset`).its('status').should('eq', 200);
+
             const command = {
                 auto_complete: false,
                 description: 'Test for single-slot dialog refresh navigation',
@@ -82,7 +85,9 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
     });
 
     it('MM-T2570B - Selecting a mission morphs the dialog to the mission detail in-place', () => {
-        cy.intercept('POST', '**/refresh_nav_source').as('refreshSource');
+        // Field refreshes and submits both go through the dialog submit API; the server
+        // then calls the webhook's source_url / submit url, which the browser never sees.
+        cy.intercept('POST', '/api/v4/actions/dialogs/submit').as('submitDialog');
 
         cy.postMessage(`/${createdCommand.trigger} `);
         cy.get('#appsModal').should('be.visible');
@@ -93,8 +98,8 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
             cy.contains('label', 'M-1').click();
         });
 
-        // # Wait for the source URL to respond
-        cy.wait('@refreshSource').its('response.statusCode').should('eq', 200);
+        // # Wait for the field refresh to respond
+        cy.wait('@submitDialog').its('response.statusCode').should('eq', 200);
 
         // * Dialog title morphed to the mission detail title
         cy.get('#appsModalLabel').should('contain', 'M-1');
@@ -106,15 +111,14 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
         cy.contains('Deploy assets').should('be.visible');
 
         // * Submit label changed to reflect the detail action
-        cy.get('#appsModalSubmit').should('contain', 'Save');
+        cy.get('#appsModalSubmit').should('contain', 'Save & Return to Board');
 
         // * Still only ONE modal (no stacking occurred)
         cy.get('[id="appsModal"]').should('have.length', 1);
     });
 
     it('MM-T2570C - Saving the detail form returns a refreshed board with updated task counts', () => {
-        cy.intercept('POST', '**/refresh_nav_source').as('refreshSource');
-        cy.intercept('POST', '**/dialog_submit').as('dialogSubmit');
+        cy.intercept('POST', '/api/v4/actions/dialogs/submit').as('submitDialog');
 
         cy.postMessage(`/${createdCommand.trigger} `);
         cy.get('#appsModal').should('be.visible');
@@ -123,7 +127,7 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
         cy.get('#appsModal').within(() => {
             cy.contains('label', 'M-2').click();
         });
-        cy.wait('@refreshSource');
+        cy.wait('@submitDialog').its('response.statusCode').should('eq', 200);
 
         cy.get('#appsModalLabel').should('contain', 'M-2');
 
@@ -135,20 +139,20 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
         // # Submit the detail form — handler detects mission_id in submission,
         // updates tasks, and returns a fresh board form ({type:'form'})
         cy.get('#appsModalSubmit').click();
-        cy.wait('@dialogSubmit').its('response.statusCode').should('eq', 200);
+        cy.wait('@submitDialog').its('response.statusCode').should('eq', 200);
 
         // * Dialog morphed back to the board (same modal, no close/reopen)
         cy.get('#appsModalLabel').should('contain', 'Mission Board');
 
         // * M-2 row in the intro table now shows 1/2 tasks
-        cy.get('#appsModal .modal-body').should('contain', 'M-2');
+        cy.get('#appsModal .modal-body').should('contain', '1/2');
 
         // * Still only one modal
         cy.get('[id="appsModal"]').should('have.length', 1);
     });
 
     it('MM-T2570D - Selecting different missions shows their distinct task lists', () => {
-        cy.intercept('POST', '**/refresh_nav_source').as('refreshSource');
+        cy.intercept('POST', '/api/v4/actions/dialogs/submit').as('submitDialog');
 
         cy.postMessage(`/${createdCommand.trigger} `);
         cy.get('#appsModal').should('be.visible');
@@ -157,7 +161,7 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
         cy.get('#appsModal').within(() => {
             cy.contains('label', 'M-1').click();
         });
-        cy.wait('@refreshSource');
+        cy.wait('@submitDialog').its('response.statusCode').should('eq', 200);
 
         // * M-1 tasks visible; M-2 tasks not visible
         cy.contains('Secure perimeter').should('be.visible');
@@ -165,6 +169,9 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
 
         // # Go back to board by cancelling, then reopen and select M-2
         cy.get('#appsModalCancel').click();
+
+        // # The cancel notification (notify_on_cancel) also goes through the submit API
+        cy.wait('@submitDialog').its('response.statusCode').should('eq', 200);
         cy.get('#appsModal').should('not.exist');
 
         cy.postMessage(`/${createdCommand.trigger} `);
@@ -173,11 +180,30 @@ describe('Interactive Dialog - Single-slot navigation via field Refresh + source
         cy.get('#appsModal').within(() => {
             cy.contains('label', 'M-2').click();
         });
-        cy.wait('@refreshSource');
+        cy.wait('@submitDialog').its('response.statusCode').should('eq', 200);
 
         // * M-2 tasks visible; M-1 tasks not visible
         cy.contains('Brief team').should('be.visible');
         cy.contains('Check equipment').should('be.visible');
         cy.contains('Secure perimeter').should('not.exist');
+    });
+
+    it('MM-T2570E - Close on the board without choosing a mission closes the dialog', () => {
+        cy.intercept('POST', '/api/v4/actions/dialogs/submit').as('submitDialog');
+
+        cy.postMessage(`/${createdCommand.trigger} `);
+        cy.get('#appsModalLabel').should('contain', 'Mission Board');
+
+        // # Click Close without selecting a mission
+        cy.get('#appsModalSubmit').should('contain', 'Close').click();
+
+        // * The board is submitted without a mission and the dialog closes
+        cy.wait('@submitDialog').then(({request, response}) => {
+            expect(request.body.callback_id).to.eq('refresh_nav_board');
+            // An unselected radio is submitted as an empty value
+            expect(request.body.submission.mission_id).to.not.be.ok;
+            expect(response.statusCode).to.eq(200);
+        });
+        cy.get('#appsModal').should('not.exist');
     });
 });

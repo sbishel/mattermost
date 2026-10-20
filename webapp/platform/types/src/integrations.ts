@@ -163,6 +163,7 @@ export type Dialog = {
     state?: string;
     source_url?: string;
     submit_buttons?: string;
+    refresh_on_return?: boolean;
 };
 
 export type DialogSubmission = {

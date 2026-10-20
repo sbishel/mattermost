@@ -22,6 +22,10 @@ type Props = {
     timezone?: string;
     refreshNonce?: number;
     hidden?: boolean;
+
+    // Called with each form that replaces the current one (from a submit or refresh).
+    // A refresh response superseded by a newer form is never applied or reported.
+    onFormChange?: (form: AppForm) => void;
     onExited: () => void;
     onHide?: () => void;
     actions: {
@@ -37,10 +41,24 @@ type State = {
 };
 
 class AppsFormContainer extends React.PureComponent<Props, State> {
+    private refreshSeq = 0;
+    private unmounted = false;
+
     constructor(props: Props) {
         super(props);
         this.state = {form: props.form};
     }
+
+    componentWillUnmount() {
+        this.unmounted = true;
+    }
+
+    applyForm = (form?: AppForm) => {
+        this.setState({form});
+        if (form) {
+            this.props.onFormChange?.(form);
+        }
+    };
 
     submitForm = async (submission: {values: AppFormValues}): Promise<DoAppCallResult<FormResponseData>> => {
         const makeErrorMsg = (msg: string) => {
@@ -83,7 +101,9 @@ class AppsFormContainer extends React.PureComponent<Props, State> {
             }
             break;
         case AppCallResponseTypes.FORM:
-            this.setState({form: callResp.form});
+            // A newer form replaces the current one; drop any refresh still in flight.
+            this.refreshSeq++;
+            this.applyForm(callResp.form);
             break;
         case AppCallResponseTypes.NAVIGATE:
             break;
@@ -144,7 +164,9 @@ class AppsFormContainer extends React.PureComponent<Props, State> {
         const callResp = res.data!;
         switch (callResp.type) {
         case AppCallResponseTypes.FORM:
-            this.setState({form: callResp.form});
+            // A newer form replaces the current one; drop any refresh still in flight.
+            this.refreshSeq++;
+            this.applyForm(callResp.form);
             break;
         case AppCallResponseTypes.OK:
         case AppCallResponseTypes.NAVIGATE:
@@ -175,10 +197,16 @@ class AppsFormContainer extends React.PureComponent<Props, State> {
             return {data: {type: AppCallResponseTypes.OK}};
         }
 
+        const seq = ++this.refreshSeq;
         const creq = createCallRequest(form.source, this.props.appContext, {}, values);
         const res = await this.props.actions.doAppFetchForm(creq, this.props.intl);
+
+        // Ignore a response superseded by a newer refresh, or that arrives after unmount.
+        if (this.unmounted || seq !== this.refreshSeq) {
+            return {data: {type: AppCallResponseTypes.OK}};
+        }
         if (!res.error && res.data?.type === AppCallResponseTypes.FORM && res.data.form) {
-            this.setState({form: res.data.form});
+            this.applyForm(res.data.form);
         }
         return res;
     };

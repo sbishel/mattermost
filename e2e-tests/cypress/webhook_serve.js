@@ -40,6 +40,8 @@ server.post('/dialog/mission', onMissionDialogRequest);
 server.post('/dialog/mission/cargo', onMissionCargoDialog);
 server.post('/dialog/mission/cargo_source', onMissionCargoSource);
 server.post('/dialog/mission/schedule', onMissionScheduleDialog);
+server.post('/dialog/submit_buttons', onSubmitButtonsDialogRequest);
+server.post('/dialog/reset', onResetDialogDemoData);
 server.post('/field_refresh_source', onFieldRefreshSource);
 server.post('/dialog/refresh_nav', onRefreshNavDialogRequest);
 server.post('/refresh_nav_source', onRefreshNavSource);
@@ -92,6 +94,7 @@ function ping(req, res) {
             'POST /dialog/mission/cargo',
             'POST /dialog/mission/cargo_source',
             'POST /dialog/mission/schedule',
+            'POST /dialog/submit_buttons',
             'POST /field_refresh_source',
             'POST /dialog/refresh_nav',
             'POST /refresh_nav_source',
@@ -552,6 +555,17 @@ function onDialogSubmit(req, res) {
         return res.json({});
     }
 
+    // Submit-buttons demo: "add" keeps the dialog open with an updated note count
+    // (state carries the count); any other button closes the dialog.
+    if (body.callback_id === 'submit_buttons_demo') {
+        const submission = body.submission || {};
+        if (submission.action === 'add') {
+            const count = (parseInt(body.state, 10) || 0) + 1;
+            return res.json({type: 'form', form: getSubmitButtonsForm(count, submission.note)});
+        }
+        return res.json({});
+    }
+
     // Refresh-nav: after a SourceURL refresh the Redux dialog state retains
     // callback_id 'refresh_nav_board'. If mission_id is in the submission the
     // user submitted the detail task-list view — save the tasks and return a
@@ -723,6 +737,16 @@ const refreshNavMissions = [
     },
 ];
 
+// Snapshots of the demo data, restored by /dialog/reset so specs start from a known
+// state even after manual demo runs against the same webhook server.
+const initialRefreshNavMissions = JSON.stringify(refreshNavMissions);
+
+function onResetDialogDemoData(req, res) {
+    refreshNavMissions.splice(0, refreshNavMissions.length, ...JSON.parse(initialRefreshNavMissions));
+    mission.sorties = JSON.parse(initialMissionSorties);
+    res.json({});
+}
+
 function buildRefreshNavBoardIntro() {
     let intro = '| Mission | Name | Status | Progress |\n|---|---|---|---|\n';
     for (const m of refreshNavMissions) {
@@ -746,6 +770,9 @@ function buildRefreshNavBoardForm() {
             name: 'mission_id',
             type: 'radio',
             refresh: true,
+
+            // Optional so the board's "Close" submit passes validation with no selection.
+            optional: true,
             options: refreshNavMissions.map((m) => {
                 const done = m.tasks.filter((t) => t.done).length;
                 return {text: `${m.id} — ${m.name} (${done}/${m.tasks.length})`, value: m.id};
@@ -902,6 +929,8 @@ const mission = {
     ],
 };
 
+const initialMissionSorties = JSON.stringify(mission.sorties);
+
 function getMissionDialog(triggerId) {
     const pallets = mission.sorties.reduce((sum, s) => sum + s.cargo.reduce((n, c) => n + c.pallets, 0), 0);
     return {
@@ -941,8 +970,8 @@ function getMissionCargoDialog(triggerId) {
     };
 }
 
-// source_url is called when a stacked schedule dialog closes, so the rows pick
-// up task progress saved in the schedule.
+// refresh_on_return calls source_url when a stacked schedule dialog closes, so the
+// rows pick up task progress saved in the schedule.
 function buildMissionCargoForm() {
     return {
         callback_id: 'mission_cargo',
@@ -951,6 +980,7 @@ function buildMissionCargoForm() {
         submit_label: 'Close',
         notify_on_cancel: true,
         source_url: `${webhookBaseUrl}/dialog/mission/cargo_source`,
+        refresh_on_return: true,
         elements: [
             {
                 display_name: 'Notes',
@@ -1189,6 +1219,57 @@ async function onMissionScheduleDialog(req, res) {
         await openDialog(getMissionScheduleDialog(body.trigger_id, sortie, loadPlanFileId));
     }
     return res.json({});
+}
+
+// ---------------------------------------------------------------------------
+// Submit-buttons demo: the `action` select is rendered as one submit button per
+// option (submit_buttons), and the clicked option's value is submitted as `action`.
+// ---------------------------------------------------------------------------
+
+function getSubmitButtonsForm(count, lastNote) {
+    let intro = `Notes added: ${count}`;
+    if (lastNote) {
+        intro += `\n\nLast note: ${lastNote}`;
+    }
+    return {
+        callback_id: 'submit_buttons_demo',
+        title: 'Submit Buttons Demo',
+        introduction_text: intro,
+        notify_on_cancel: true,
+        state: String(count),
+        submit_buttons: 'action',
+        elements: [
+            {
+                display_name: 'Note',
+                name: 'note',
+                type: 'text',
+                optional: true,
+            },
+            {
+                display_name: 'Action',
+                name: 'action',
+                type: 'select',
+                options: [
+                    {text: 'Add Note', value: 'add'},
+                    {text: 'Save & Close', value: 'save'},
+                ],
+            },
+        ],
+    };
+}
+
+function onSubmitButtonsDialogRequest(req, res) {
+    const {body} = req;
+    if (body.trigger_id) {
+        openDialog({
+            trigger_id: body.trigger_id,
+            url: `${webhookBaseUrl}/dialog_submit`,
+            dialog: getSubmitButtonsForm(0),
+        });
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    return res.json({text: 'Submit buttons dialog opened!'});
 }
 
 function onFieldRefreshSource(req, res) {
