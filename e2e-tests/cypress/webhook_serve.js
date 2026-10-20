@@ -989,8 +989,29 @@ function getSortieRowLabel(sortie) {
     return `${sortie.id} · ${sortie.origin} → ${sortie.destination} · ${sortie.aircraft} · ${pallets} pallets · ${weight.toLocaleString('en-US')} lb · tasks ${done}/${sortie.schedule.length} · ${items}`;
 }
 
-function getMissionScheduleDialog(triggerId, sortie) {
+function getMissionScheduleDialog(triggerId, sortie, loadPlanFileId) {
     const done = sortie.schedule.filter((t) => t.done).length;
+    const taskElements = sortie.schedule.map((t, i) => ({
+        display_name: t.time,
+        name: `task_${i}`,
+        type: 'bool',
+        placeholder: t.task,
+        default: t.done ? 'true' : 'false',
+        optional: true,
+    }));
+
+    // Inline preview of the load plan's first page; clicking opens the full PDF. The first
+    // sortie shows the whole page and the others crop to the top, to demo both modes.
+    const showFullPage = sortie.id === mission.sorties[0].id;
+    const previewElements = loadPlanFileId ? [{
+        display_name: 'Load Plan',
+        name: 'load_plan',
+        type: 'preview',
+        default: loadPlanFileId,
+        ...(showFullPage ? {} : {max_height: 300}),
+        help_text: 'Click to open the full load plan.',
+    }] : [];
+
     return {
         trigger_id: triggerId,
         url: `${webhookBaseUrl}/dialog_submit`,
@@ -1001,16 +1022,128 @@ function getMissionScheduleDialog(triggerId, sortie) {
             submit_label: 'Save',
             notify_on_cancel: true,
             state: sortie.id,
-            elements: sortie.schedule.map((t, i) => ({
-                display_name: t.time,
-                name: `task_${i}`,
-                type: 'bool',
-                placeholder: t.task,
-                default: t.done ? 'true' : 'false',
-                optional: true,
-            })),
+            elements: [...previewElements, ...taskElements],
         },
     };
+}
+
+// Builds a one-page load plan PDF for a sortie: aircraft diagram and totals at the top,
+// pallet manifest and sign-off below. Plain PDF 1.4 with built-in Helvetica fonts.
+function buildLoadPlanPdf(sortie) {
+    const esc = (s) => String(s).replace(/[\\()]/g, '\\$&');
+    const fmt = (n) => n.toLocaleString('en-US');
+    const ops = [];
+    const text = (x, y, size, s, bold = false) => ops.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${esc(s)}) Tj ET`);
+    const colors = ['0.85 0.33 0.31', '0.29 0.49 0.82', '0.36 0.66 0.40', '0.93 0.65 0.20'];
+
+    const pallets = [];
+    sortie.cargo.forEach((c, ci) => {
+        for (let i = 0; i < c.pallets; i++) {
+            pallets.push({item: c.item, weight: Math.round(c.weight / c.pallets), color: colors[ci % colors.length]});
+        }
+    });
+    const totalWeight = sortie.cargo.reduce((n, c) => n + c.weight, 0);
+
+    // Header band
+    ops.push('0.15 0.20 0.30 rg 0 742 612 50 re f');
+    ops.push('1 g');
+    text(40, 760, 20, 'LOAD PLAN', true);
+    text(440, 760, 14, `SORTIE ${sortie.id}`, true);
+    ops.push('0 g');
+    text(40, 718, 11, `Mission ${mission.id} ${mission.name}   |   ${sortie.origin} -> ${sortie.destination}   |   ${sortie.aircraft}`);
+
+    // Fuselage outline: nose on the left, cargo ramp on the right
+    ops.push('1.5 w 0.3 g');
+    ops.push('40 630 m 70 680 l 520 680 l 572 650 l 572 610 l 520 580 l 70 580 l h S');
+    ops.push('0 g');
+
+    // Pallet positions in two rows
+    const cols = Math.max(1, Math.ceil(pallets.length / 2));
+    const boxW = (440 / cols) - 4;
+    pallets.forEach((p, i) => {
+        const x = 76 + ((i % cols) * (boxW + 4));
+        const y = i < cols ? 632 : 588;
+        ops.push(`${p.color} rg ${x.toFixed(1)} ${y} ${boxW.toFixed(1)} 40 re f`);
+        ops.push('1 g');
+        text((x + 4).toFixed(1), y + 26, 9, `P${i + 1}`, true);
+        text((x + 4).toFixed(1), y + 8, 7, `${fmt(p.weight)}`);
+        ops.push('0 g');
+    });
+
+    // Legend and totals
+    sortie.cargo.forEach((c, ci) => {
+        const x = 40 + (ci * 180);
+        ops.push(`${colors[ci % colors.length]} rg ${x} 552 10 10 re f 0 g`);
+        text(x + 16, 553, 9, `${c.item} (${c.pallets} pal, ${fmt(c.weight)} lb)`);
+    });
+    text(40, 524, 12, `Total: ${pallets.length} pallets   |   ${fmt(totalWeight)} lb`, true);
+
+    // Manifest table (below the 300px crop the demo dialog uses)
+    ops.push('0.5 w 40 500 m 572 500 l S');
+    text(40, 486, 10, 'POS', true);
+    text(100, 486, 10, 'ITEM', true);
+    text(460, 486, 10, 'WEIGHT (LB)', true);
+    pallets.forEach((p, i) => {
+        const y = 468 - (i * 16);
+        text(40, y, 10, `P${i + 1}`);
+        text(100, y, 10, p.item);
+        text(460, y, 10, fmt(p.weight));
+    });
+
+    text(40, 110, 10, 'Loadmaster: ______________________________          Date: ______________');
+    text(40, 84, 10, 'Aircraft Commander: ______________________          Date: ______________');
+
+    const stream = ops.join('\n');
+    const objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
+        `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`,
+    ];
+
+    let pdf = '%PDF-1.4\n';
+    const offsets = objects.map((obj, i) => {
+        const offset = Buffer.byteLength(pdf, 'latin1');
+        pdf += `${i + 1} 0 obj\n${obj}\nendobj\n`;
+        return offset;
+    });
+    const xrefOffset = Buffer.byteLength(pdf, 'latin1');
+    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+    pdf += offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('');
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+    return Buffer.from(pdf, 'latin1');
+}
+
+// Uploaded load plan file IDs, keyed by channel and sortie, so each is uploaded once.
+const loadPlanFileIds = {};
+
+async function uploadLoadPlan(sortie, channelId) {
+    const key = `${channelId}:${sortie.id}`;
+    if (loadPlanFileIds[key]) {
+        return loadPlanFileIds[key];
+    }
+
+    const login = await axios({
+        url: `${baseUrl}/api/v4/users/login`,
+        method: 'post',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        data: {login_id: adminUsername, password: adminPassword},
+    });
+
+    const form = new FormData();
+    form.append('channel_id', channelId);
+    form.append('files', new Blob([buildLoadPlanPdf(sortie)], {type: 'application/pdf'}), `load-plan-${sortie.id}.pdf`);
+    const upload = await axios({
+        url: `${baseUrl}/api/v4/files`,
+        method: 'post',
+        headers: {Authorization: `Bearer ${login.headers.token}`},
+        data: form,
+    });
+
+    loadPlanFileIds[key] = upload.data.file_infos[0].id;
+    return loadPlanFileIds[key];
 }
 
 function onMissionDialogRequest(req, res) {
@@ -1046,7 +1179,14 @@ async function onMissionScheduleDialog(req, res) {
     }
 
     if (body.trigger_id) {
-        await openDialog(getMissionScheduleDialog(body.trigger_id, sortie));
+        let loadPlanFileId;
+        try {
+            loadPlanFileId = await uploadLoadPlan(sortie, body.channel_id);
+        } catch (err) {
+            // Open the schedule without the preview rather than failing the action.
+            console.error('Load plan upload failed:', err.response ? JSON.stringify(err.response.data) : err.message);
+        }
+        await openDialog(getMissionScheduleDialog(body.trigger_id, sortie, loadPlanFileId));
     }
     return res.json({});
 }

@@ -1,0 +1,38 @@
+.apps-form-preview {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    width: 100%;
+    padding: 0;
+    border: 1px solid rgba(var(--center-channel-color-rgb), 0.16);
+    border-radius: 4px;
+    background: var(--center-channel-bg);
+    cursor: zoom-in;
+    text-align: left;
+
+    &:hover:not(:disabled) {
+        border-color: rgba(var(--center-channel-color-rgb), 0.32);
+    }
+
+    &:disabled {
+        cursor: default;
+    }
+
+    &__media {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+    &__loading {
+        display: flex;
+        min-height: 120px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    &__error {
+        padding: 12px;
+        color: rgba(var(--center-channel-color-rgb), 0.64);
+    }
+}

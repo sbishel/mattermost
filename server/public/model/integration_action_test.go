@@ -3023,3 +3023,87 @@ func TestDialogElementIsValid_ActionButton(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid action_button URL")
 	})
 }
+
+func TestDialogElementIsValid_Preview(t *testing.T) {
+	t.Run("should pass validation with a file ID", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			Default:     NewId(),
+		}
+		assert.NoError(t, element.IsValid())
+	})
+
+	t.Run("should fail when default is empty", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+		}
+		err := element.IsValid()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires a valid file ID")
+	})
+
+	t.Run("should fail when default is not a valid ID", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			Default:     "not-an-id",
+		}
+		err := element.IsValid()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires a valid file ID")
+	})
+
+	t.Run("should fail with options", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			Default:     NewId(),
+			Options:     []*PostActionOptions{{Text: "a", Value: "a"}},
+		}
+		err := element.IsValid()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot have options")
+	})
+
+	t.Run("should pass with a positive max_height", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			Default:     NewId(),
+			MaxHeight:   300,
+		}
+		assert.NoError(t, element.IsValid())
+	})
+
+	t.Run("should fail with a negative max_height", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			Default:     NewId(),
+			MaxHeight:   -1,
+		}
+		err := element.IsValid()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_height cannot be negative")
+	})
+
+	t.Run("should fail when max_height is set on a non-preview element", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Notes",
+			Name:        "notes",
+			Type:        "text",
+			MaxHeight:   300,
+		}
+		err := element.IsValid()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_height can only be used with preview elements")
+	})
+}

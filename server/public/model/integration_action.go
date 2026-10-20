@@ -520,6 +520,8 @@ type DialogElement struct {
 	MatrixConfig  *DialogMatrixConfig `json:"matrix_config,omitempty"`
 	// Action button configuration (type "action_button")
 	ActionButton *DialogActionButton `json:"action_button,omitempty"`
+	// MaxHeight crops a "preview" element to this many pixels from the top; 0 shows the whole first page.
+	MaxHeight int `json:"max_height,omitempty"`
 }
 
 // EffectiveDateTimeConfig returns the resolved date/datetime configuration,
@@ -817,6 +819,10 @@ func (e *DialogElement) isValid(seen map[string]bool) error {
 		multiErr = multierror.Append(multiErr, errors.Errorf("allow_multiple can only be used with file elements, got type %q", e.Type))
 	}
 
+	if e.MaxHeight != 0 && e.Type != "preview" {
+		multiErr = multierror.Append(multiErr, errors.Errorf("max_height can only be used with preview elements, got type %q", e.Type))
+	}
+
 	switch e.Type {
 	case "text":
 		multiErr = multierror.Append(multiErr, checkMaxLength("Default", e.Default, DialogElementTextMaxLength))
@@ -972,6 +978,21 @@ func (e *DialogElement) isValid(seen map[string]bool) error {
 			multiErr = multierror.Append(multiErr, errors.New("action_button requires a non-empty URL"))
 		} else if !IsValidLookupURL(e.ActionButton.URL) {
 			multiErr = multierror.Append(multiErr, errors.Wrap(errors.New("invalid URL"), "invalid action_button URL"))
+		}
+
+	case "preview":
+		// Display-only: Default holds the ID of the file to render inline.
+		if !IsValidId(e.Default) {
+			multiErr = multierror.Append(multiErr, errors.Errorf("preview element requires a valid file ID in default, got %q", e.Default))
+		}
+		if e.MaxHeight < 0 {
+			multiErr = multierror.Append(multiErr, errors.Errorf("max_height cannot be negative, got %d", e.MaxHeight))
+		}
+		if len(e.Options) > 0 {
+			multiErr = multierror.Append(multiErr, errors.New("preview elements cannot have options"))
+		}
+		if e.DataSource != "" {
+			multiErr = multierror.Append(multiErr, errors.New("preview elements cannot have a data source"))
 		}
 
 	default:

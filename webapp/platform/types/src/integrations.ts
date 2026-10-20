@@ -237,6 +237,9 @@ export type DialogElement = {
         url: string;
         context?: Record<string, string>;
     };
+
+    // Crop height in pixels for type "preview"; 0 or unset shows the whole first page
+    max_height?: number;
 };
 
 export type SubmitDialogResponse = {
