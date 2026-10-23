@@ -1014,12 +1014,19 @@ func (e *DialogElement) isValid(seen map[string]bool) error {
 		}
 
 	case "preview":
-		// Display-only: Default holds the ID of the file to render inline.
+		// Display-only: Default holds the ID of the file to render inline, or as a
+		// file card when SubType is "file".
 		if !IsValidId(e.Default) {
 			multiErr = multierror.Append(multiErr, errors.Errorf("preview element requires a valid file ID in default, got %q", e.Default))
 		}
+		if e.SubType != "" && e.SubType != "file" {
+			multiErr = multierror.Append(multiErr, errors.Errorf("invalid preview subtype %q", e.SubType))
+		}
 		if e.MaxHeight < 0 {
 			multiErr = multierror.Append(multiErr, errors.Errorf("max_height cannot be negative, got %d", e.MaxHeight))
+		}
+		if e.MaxHeight != 0 && e.SubType == "file" {
+			multiErr = multierror.Append(multiErr, errors.New("max_height cannot be used with the file preview subtype"))
 		}
 		if len(e.Options) > 0 {
 			multiErr = multierror.Append(multiErr, errors.New("preview elements cannot have options"))

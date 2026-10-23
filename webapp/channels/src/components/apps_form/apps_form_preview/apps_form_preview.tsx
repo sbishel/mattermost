@@ -5,7 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import 'pdfjs-dist/build/pdf.worker.min.mjs';
 import type {RenderParameters} from 'pdfjs-dist/types/src/display/api';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {useIntl} from 'react-intl';
+import {FormattedMessage, useIntl} from 'react-intl';
 import {useDispatch} from 'react-redux';
 
 import type {FileInfo} from '@mattermost/types/files';
@@ -15,6 +15,7 @@ import {getFilePreviewUrl, getFileUrl} from 'mattermost-redux/utils/file_utils';
 
 import {openModal} from 'actions/views/modals';
 
+import FileAttachment from 'components/file_attachment';
 import FilePreviewModal from 'components/file_preview_modal';
 import LoadingSpinner from 'components/widgets/loading/loading_spinner';
 
@@ -29,15 +30,19 @@ type Props = {
 
     // Crop height in pixels from the top; unset shows the whole image or first page.
     maxHeight?: number;
+
+    // Shows the file as a standard file card instead of rendering it inline.
+    asFile?: boolean;
     label?: string;
     description?: string;
 };
 
 type Status = 'loading' | 'success' | 'fail';
 
-// Renders an image or the first page of a PDF inline, optionally cropped to maxHeight.
-// Clicking opens the full file in the standard file preview modal.
-const AppsFormPreview: React.FC<Props> = ({fileId, maxHeight, label, description}) => {
+// Renders an image or the first page of a PDF inline, optionally cropped to maxHeight,
+// or any file as a file card when asFile is set. Clicking opens the full file in the
+// standard file preview modal.
+const AppsFormPreview: React.FC<Props> = ({fileId, maxHeight, asFile, label, description}) => {
     const dispatch = useDispatch();
     const intl = useIntl();
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,7 +72,7 @@ const AppsFormPreview: React.FC<Props> = ({fileId, maxHeight, label, description
     const fileType = fileInfo ? getFileType(fileInfo.extension) : null;
 
     useEffect(() => {
-        if (!fileInfo) {
+        if (!fileInfo || asFile) {
             return undefined;
         }
 
@@ -124,7 +129,7 @@ const AppsFormPreview: React.FC<Props> = ({fileId, maxHeight, label, description
             cancelled = true;
             pdf?.destroy();
         };
-    }, [fileInfo, fileType]);
+    }, [fileInfo, fileType, asFile]);
 
     const openFullPreview = useCallback(() => {
         if (!fileInfo) {
@@ -140,6 +145,40 @@ const AppsFormPreview: React.FC<Props> = ({fileId, maxHeight, label, description
             },
         }));
     }, [dispatch, fileInfo]);
+
+    if (asFile) {
+        let card;
+        if (fileInfo) {
+            card = (
+                <div className='post-image__columns clearfix'>
+                    <FileAttachment
+                        fileInfo={fileInfo}
+                        index={0}
+                        handleImageClick={openFullPreview}
+                    />
+                </div>
+            );
+        } else if (status === 'fail') {
+            card = (
+                <div className='apps-form-preview__error'>
+                    <FormattedMessage
+                        id='apps_form.preview.unavailable'
+                        defaultMessage='Preview unavailable'
+                    />
+                </div>
+            );
+        } else {
+            card = <LoadingSpinner/>;
+        }
+
+        return (
+            <div className='form-group'>
+                {label && <label className='control-label'>{label}</label>}
+                {card}
+                {description && <div className='help-text'>{description}</div>}
+            </div>
+        );
+    }
 
     let content;
     if (status === 'fail') {

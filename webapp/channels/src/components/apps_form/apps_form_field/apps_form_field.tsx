@@ -340,6 +340,7 @@ export default class AppsFormField extends React.PureComponent<Props> {
                     <AppsFormPreview
                         fileId={field.preview_file_id}
                         maxHeight={field.preview_max_height}
+                        asFile={field.subtype === 'file'}
                         label={field.label}
                         description={field.description}
                     />

@@ -174,4 +174,44 @@ describe('AppsFormPreview', () => {
             },
         });
     });
+
+    it('shows a file card instead of rendering inline when asFile is set, and opens the modal on click', async () => {
+        const info = TestHelper.getFileInfoMock({id: fileId, name: 'load-plan.pdf', extension: 'pdf', post_id: 'post_1'});
+        jest.spyOn(Client4, 'getFileInfo').mockResolvedValue(info);
+
+        renderWithContext(
+            <AppsFormPreview
+                fileId={fileId}
+                asFile={true}
+            />,
+        );
+
+        await userEvent.click(await screen.findByRole('link', {name: 'file thumbnail load-plan.pdf'}));
+
+        expect(screen.getByText('load-plan.pdf')).toBeInTheDocument();
+        expect(screen.queryByTestId('apps-form-preview')).not.toBeInTheDocument();
+        expect(mockGetDocument).not.toHaveBeenCalled();
+        expect(mockOpenModal).toHaveBeenCalledWith({
+            modalId: ModalIdentifiers.FILE_PREVIEW_MODAL,
+            dialogType: FilePreviewModal,
+            dialogProps: {
+                fileInfos: [info],
+                postId: 'post_1',
+                startIndex: 0,
+            },
+        });
+    });
+
+    it('shows "Preview unavailable" in file card mode when fetching file info fails', async () => {
+        jest.spyOn(Client4, 'getFileInfo').mockRejectedValue(new Error('forbidden'));
+
+        renderWithContext(
+            <AppsFormPreview
+                fileId={fileId}
+                asFile={true}
+            />,
+        );
+
+        expect(await screen.findByText('Preview unavailable')).toBeInTheDocument();
+    });
 });

@@ -3106,6 +3106,44 @@ func TestDialogElementIsValid_Preview(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max_height can only be used with preview elements")
 	})
+
+	t.Run("should pass with the file subtype", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			SubType:     "file",
+			Default:     NewId(),
+		}
+		assert.NoError(t, element.IsValid())
+	})
+
+	t.Run("should fail with an unknown subtype", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			SubType:     "email",
+			Default:     NewId(),
+		}
+		err := element.IsValid()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid preview subtype")
+	})
+
+	t.Run("should fail with max_height and the file subtype", func(t *testing.T) {
+		element := DialogElement{
+			DisplayName: "Load Plan",
+			Name:        "load_plan",
+			Type:        "preview",
+			SubType:     "file",
+			Default:     NewId(),
+			MaxHeight:   300,
+		}
+		err := element.IsValid()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_height cannot be used with the file preview subtype")
+	})
 }
 
 func TestDialog_SubmitButtonsJSON(t *testing.T) {

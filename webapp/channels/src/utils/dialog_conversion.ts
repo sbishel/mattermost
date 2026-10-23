@@ -572,6 +572,9 @@ export function convertElement(element: DialogElement, options: ConversionOption
         if (element.max_height && element.max_height > 0) {
             appField.preview_max_height = element.max_height;
         }
+        if (element.subtype) {
+            appField.subtype = element.subtype;
+        }
     }
 
     // Add date/datetime specific properties

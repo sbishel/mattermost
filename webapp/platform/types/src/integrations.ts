@@ -239,7 +239,8 @@ export type DialogElement = {
         context?: Record<string, string>;
     };
 
-    // Crop height in pixels for type "preview"; 0 or unset shows the whole first page
+    // Crop height in pixels for type "preview"; 0 or unset shows the whole first page.
+    // Not allowed with subtype "file", which shows a file card instead of rendering inline.
     max_height?: number;
 };
 

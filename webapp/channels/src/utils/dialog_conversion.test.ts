@@ -2446,6 +2446,18 @@ describe('dialog_conversion', () => {
             expect(convertElement(base, legacyOptions).field?.preview_max_height).toBeUndefined();
         });
 
+        it('should pass the file subtype through', () => {
+            const base = {
+                name: 'my_preview',
+                display_name: 'My Preview',
+                type: DialogElementTypes.PREVIEW,
+                default: 'file_id_1',
+            } as DialogElement;
+
+            expect(convertElement({...base, subtype: 'file'}, legacyOptions).field?.subtype).toBe('file');
+            expect(convertElement(base, legacyOptions).field?.subtype).toBeUndefined();
+        });
+
         it('should exclude preview from submission even when not optional, with no required error', () => {
             const values = {text_field: 'hello'} as unknown as AppFormValues;
             const elements: DialogElement[] = [

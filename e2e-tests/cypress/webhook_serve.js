@@ -1030,15 +1030,22 @@ function getMissionScheduleDialog(triggerId, sortie, loadPlanFileId) {
         optional: true,
     }));
 
-    // Inline preview of the load plan's first page; clicking opens the full PDF. The first
-    // sortie shows the whole page and the others crop to the top, to demo both modes.
-    const showFullPage = sortie.id === mission.sorties[0].id;
+    // Preview of the load plan; clicking opens the full PDF. To demo each mode, the first
+    // sortie shows the whole first page, the third shows a file card, and the others crop
+    // the first page to the top.
+    const sortieIndex = mission.sorties.findIndex((s) => s.id === sortie.id);
+    let previewMode = {max_height: 300};
+    if (sortieIndex === 0) {
+        previewMode = {};
+    } else if (sortieIndex === 2) {
+        previewMode = {subtype: 'file'};
+    }
     const previewElements = loadPlanFileId ? [{
         display_name: 'Load Plan',
         name: 'load_plan',
         type: 'preview',
         default: loadPlanFileId,
-        ...(showFullPage ? {} : {max_height: 300}),
+        ...previewMode,
         help_text: 'Click to open the full load plan.',
     }] : [];
 
